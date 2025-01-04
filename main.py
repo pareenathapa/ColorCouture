@@ -173,3 +173,33 @@ def extract_clothing_mask(image_path):
     except Exception as e:
         print("Error extracting clothing mask:", e)
         return None, None
+
+
+# Function: Replace color in the clothing region
+def generate_color_variation_images(image_path, variations):
+    try:
+        # Extract refined mask and original image
+        mask, original_image = extract_clothing_mask(image_path)
+        if mask is None:
+            return []
+
+        output_images = []
+        for idx, color in enumerate(variations):
+            # Create a blank canvas with the target color
+            color_image = np.zeros_like(original_image)
+            color_image[:, :] = color
+
+            # Apply mask to replace the color only in the clothing region
+            clothing_colored = cv2.bitwise_and(color_image, color_image, mask=mask)
+            background = cv2.bitwise_and(original_image, original_image, mask=cv2.bitwise_not(mask))
+            final_image = cv2.add(clothing_colored, background)
+
+            # Save the result
+            output_path = os.path.join(OUTPUT_FOLDER, f"variation_{idx + 1}.png")
+            cv2.imwrite(output_path, final_image)
+            output_images.append(output_path)
+
+        return output_images
+    except Exception as e:
+        print("Error generating variations:", e)
+        return []
