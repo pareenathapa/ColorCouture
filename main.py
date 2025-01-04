@@ -203,3 +203,36 @@ def generate_color_variation_images(image_path, variations):
     except Exception as e:
         print("Error generating variations:", e)
         return []
+
+
+
+# API Endpoint: Generate color variations for clothing if female is detected
+@app.post("/generate-color-variations/")
+async def generate_color_variations(file: UploadFile = File(...)):
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    with open(file_path, "wb") as buffer:
+        buffer.write(await file.read())
+    print(f"File saved at: {file_path}")
+
+    # Step 1: Check if the image contains a female
+    female_detected = is_female(file_path)
+    if not female_detected:
+        return {"contains_female": False, "message": "No female detected in the image."}
+
+    # Step 2: Define color variations
+    color_variations = [
+        (255, 0, 0),    # Red
+        (0, 255, 0),    # Green
+        (0, 0, 255),    # Blue
+        (0, 255, 255),  # Yellow
+        (255, 0, 255),  # Magenta
+        (255, 165, 0)   # Orange
+    ]
+
+    # Step 3: Generate images with color variations
+    generated_images = generate_color_variation_images(file_path, color_variations)
+
+    return {
+        "contains_female": True,
+        "generated_images": generated_images
+    }
