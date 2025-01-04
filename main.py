@@ -147,3 +147,29 @@ def is_female(image_path):
     except Exception as e:
         print("Error in gender detection:", e)
         return False
+
+
+
+# Function: Detect dress region using segmentation (simple mask refinement)
+def extract_clothing_mask(image_path):
+    try:
+        input_image = cv2.imread(image_path)
+        segmented_image = remove(Image.open(image_path))  # Remove background
+        segmented_np = np.array(segmented_image)
+
+        # Convert to grayscale and refine the mask
+        gray = cv2.cvtColor(segmented_np, cv2.COLOR_RGBA2GRAY)
+        _, mask = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+
+        # Find largest connected component (assumes clothing is the largest region)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        largest_contour = max(contours, key=cv2.contourArea)
+
+        # Create refined mask
+        refined_mask = np.zeros_like(mask)
+        cv2.drawContours(refined_mask, [largest_contour], -1, 255, thickness=cv2.FILLED)
+
+        return refined_mask, input_image
+    except Exception as e:
+        print("Error extracting clothing mask:", e)
+        return None, None
