@@ -250,3 +250,41 @@ def is_female(image_path):
         print("Error in gender detection:", e)
         return False
 
+
+# Function: Detect T-shirt using color thresholding and replace its color
+def change_tshirt_color(image_path, variations):
+    try:
+        # Load the image
+        image = cv2.imread(image_path)
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+        # Define the range for detecting the T-shirt color (orange in this case)
+        lower_range = np.array([5, 100, 100])   # Lower HSV for orange
+        upper_range = np.array([15, 255, 255])  # Upper HSV for orange
+
+        # Create a mask for the T-shirt
+        mask = cv2.inRange(hsv, lower_range, upper_range)
+        mask = cv2.medianBlur(mask, 7)  # Smooth the mask for better edges
+
+        output_images = []
+
+        for idx, color in enumerate(variations):
+            # Create a blank canvas with the new color in BGR format
+            new_color_image = np.zeros_like(image)
+            new_color_image[:] = color  # Set the new color (BGR format)
+
+            # Replace the T-shirt region with the new color
+            tshirt_colored = cv2.bitwise_and(new_color_image, new_color_image, mask=mask)
+            background = cv2.bitwise_and(image, image, mask=cv2.bitwise_not(mask))
+            final_image = cv2.add(tshirt_colored, background)
+
+            # Save the generated image
+            output_path = os.path.join(OUTPUT_FOLDER, f"variation_{idx + 1}.png")
+            cv2.imwrite(output_path, final_image)
+            output_images.append(output_path)
+
+        return output_images
+    except Exception as e:
+        print("Error changing T-shirt color:", e)
+        return []
+
