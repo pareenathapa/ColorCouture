@@ -121,14 +121,6 @@ async def generate_color_variations(file: UploadFile = File(...)):
     }
 
 
-from fastapi import FastAPI, File, UploadFile
-import os
-from deepface import DeepFace
-from PIL import Image
-import cv2
-import numpy as np
-from rembg import remove  # For basic segmentation
-
 app = FastAPI()
 
 UPLOAD_FOLDER = "uploaded_images"
@@ -236,3 +228,25 @@ async def generate_color_variations(file: UploadFile = File(...)):
         "contains_female": True,
         "generated_images": generated_images
     }
+
+
+
+app = FastAPI()
+
+UPLOAD_FOLDER = "uploaded_images"
+OUTPUT_FOLDER = "color_variations"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+
+# Function: Check if the image contains a female
+def is_female(image_path):
+    try:
+        result = DeepFace.analyze(img_path=image_path, actions=["gender"], enforce_detection=False)
+        dominant_gender = result[0]['dominant_gender']
+        print(f"Dominant Gender: {dominant_gender}")
+        return dominant_gender.lower() == "woman"
+    except Exception as e:
+        print("Error in gender detection:", e)
+        return False
+
