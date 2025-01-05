@@ -288,3 +288,38 @@ def change_tshirt_color(image_path, variations):
         print("Error changing T-shirt color:", e)
         return []
 
+
+# API Endpoint: Generate T-shirt color variations if a female is detected
+@app.post("/generate-color-variations/")
+async def generate_color_variations(file: UploadFile = File(...)):
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    with open(file_path, "wb") as buffer:
+        buffer.write(await file.read())
+    print(f"File saved at: {file_path}")
+
+    # Step 1: Check if the image contains a female
+    female_detected = is_female(file_path)
+    if not female_detected:
+        return {"contains_female": False, "message": "No female detected in the image."}
+
+    # Step 2: Define new colors for variations (BGR format)
+    color_variations = [
+        (255, 0, 0),    # Blue
+        (0, 255, 0),    # Green
+        (0, 0, 255),    # Red
+        (0, 255, 255),  # Yellow
+        (255, 0, 255),  # Magenta
+        (128, 0, 128)   # Purple
+    ]
+
+    # Step 3: Change T-shirt color
+    generated_images = change_tshirt_color(file_path, color_variations)
+
+    return {
+        "contains_female": True,
+        "generated_images": generated_images
+    }
+
+
+
+
