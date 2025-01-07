@@ -6,6 +6,12 @@ import cv2
 import numpy as np
 from sklearn.cluster import KMeans
 from rembg import remove  # For segmentation
+from ultralytics import YOLO
+import torch
+
+# Segment Anything imports
+from segment_anything import sam_model_registry, SamPredictor
+
 
 app = FastAPI()
 
@@ -318,6 +324,184 @@ async def generate_color_variations(file: UploadFile = File(...)):
     return {
         "contains_female": True,
         "generated_images": generated_images
+    }
+
+app = FastAPI()
+
+UPLOAD_FOLDER = "uploaded_images"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Load YOLOv8 model
+model = YOLO('yolov8n.pt')  # Adjust if needed
+
+# Load Segment Anything Model (SAM)
+sam_checkpoint = "sam_vit_h_4b8939.pth"  # Place the SAM checkpoint in your working directory
+sam = sam_model_registry["vit_h"](checkpoint=sam_checkpoint)
+device = "cuda" if torch.cuda.is_available() else "cpu"
+sam.to(device)
+sam_predictor = SamPredictor(sam)
+
+
+def detect_female_and_crop(image_path):
+    """
+    Detect persons using YOLO, check each one for female gender, and return a crop of the first female found.
+    If no female is found, return None.
+    """
+    image = cv2.imread(image_path)
+    if image is None:
+        raise ValueError("Could not read the image.")
+
+    results = model.predict(source=image_path, conf=0.25, verbose=False)
+    detections = results[0].boxes
+
+    for det in detections:
+        cls = int(det.cls.cpu().numpy()[0])
+        if cls == 0:  # 'person' class
+            xyxy = det.xyxy.cpu().numpy()[0].astype(int)
+            x1, y1, x2, y2 = xyxy
+            person_crop = image[y1:y2, x1:x2]
+            if person_crop.size == 0:
+                continue
+
+            crop_path = os.path.join(UPLOAD_FOLDER, "crop_temp.jpg")
+            cv2.imwrite(crop_path, person_crop)
+
+            # Check gender
+            try:
+                result = DeepFace.analyze(img_path=crop_path, actions=["gender"], enforce_detection=False)
+                dominant_gender = result[0]['dominant_gender'].lower()
+                if dominant_gender == "woman":
+                    return person_crop  # Return the crop of the female
+            except Exception as e:
+                print("Error in gender detection:", e)
+                continue
+    return None
+
+
+def segment_garment_sam(image: np.ndarray) -> np.ndarray:
+    """
+    Use SAM to segment a region of the image that presumably contains the garment.
+    For demonstration, we assume the upper half of the person_crop is the garment area.
+    We'll provide a box prompt over the upper half of the crop to SAM.
+
+    This is a very naive approach:
+    - We take the top half of the person image as a bounding box prompt.
+    - SAM returns a mask. Ideally, you'd refine the prompt or use interactive tools to get a precise garment mask.
+    """
+    h, w, _ = image.shape
+    # Define a box around the upper body (this is a guess/placeholder)
+    # For a better approach, you could use pose estimation to find torso keypoints.
+    box = np.array([w * 0.1, h * 0.05, w * 0.9, h * 0.6])  # [x_min, y_min, x_max, y_max]
+
+    sam_predictor.set_image(image, image_format="BGR")
+    masks, scores, _ = sam_predictor.predict(
+        point_coords=None,
+        point_labels=None,
+        box=box,
+        multimask_output=True
+    )
+
+    # Pick the mask with the highest score
+    if len(masks) == 0:
+        return np.zeros((h, w), dtype=np.uint8)
+
+    max_idx = np.argmax(scores)
+    selected_mask = masks[max_idx]
+
+    # Convert boolean mask to uint8 mask
+    mask = (selected_mask * 255).astype(np.uint8)
+    return mask
+
+
+def extract_dominant_color(image: np.ndarray, mask: np.ndarray) -> dict:
+    """
+    Compute the mean color in the garment region and convert it to a named color.
+    """
+    binary_mask = (mask > 128)
+    garment_pixels = image[binary_mask]
+
+    if len(garment_pixels) == 0:
+        return None
+
+    mean_bgr = np.mean(garment_pixels, axis=0)
+    mean_bgr_reshaped = np.uint8([[mean_bgr]])
+    mean_hsv = cv2.cvtColor(mean_bgr_reshaped, cv2.COLOR_BGR2HSV)[0][0]
+
+    hsv_tuple = (int(mean_hsv[0]), int(mean_hsv[1]), int(mean_hsv[2]))
+    color_name = hsv_to_color_name(hsv_tuple)
+
+    return {
+        "bgr": (float(mean_bgr[0]), float(mean_bgr[1]), float(mean_bgr[2])),
+        "hsv": hsv_tuple,
+        "color_name": color_name
+    }
+
+
+def hsv_to_color_name(hsv):
+    """
+    Convert HSV to a nearest color name. This is a simplistic approach:
+    We define a few major colors by HSV ranges and return the closest match.
+    hsv: (H, S, V)
+    """
+    H, S, V = hsv
+
+    # If saturation is low, it might be gray/white/black
+    if S < 30:
+        if V < 50:
+            return "Black"
+        elif V < 200:
+            return "Gray"
+        else:
+            return "White"
+
+    # Otherwise, use hue ranges to determine the color
+    # Common hue ranges (0-179 in OpenCV):
+    # Red: 0-10 or 170-179, Yellow: 20-30, Green: 35-85, Cyan: 85-100, Blue: 100-130, Magenta: 140-170
+    if (H <= 10 or H >= 170):
+        return "Red"
+    elif 11 <= H < 30:
+        return "Orange/Yellow"
+    elif 30 <= H < 35:
+        return "Yellowish"
+    elif 35 <= H < 85:
+        return "Green"
+    elif 85 <= H < 100:
+        return "Cyan"
+    elif 100 <= H < 130:
+        return "Blue"
+    elif 130 <= H < 170:
+        return "Magenta/Purple"
+    else:
+        return "Unknown"
+
+
+@app.post("/identify-dress-color/")
+async def identify_dress_color(file: UploadFile = File(...)):
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    with open(file_path, "wb") as buffer:
+        buffer.write(await file.read())
+    print(f"File saved at: {file_path}")
+
+    # Detect a female and get her cropped image
+    person_crop = detect_female_and_crop(file_path)
+    if person_crop is None:
+        return {"contains_female": False, "message": "No female detected in the image."}
+
+    # Segment the garment using SAM
+    garment_mask = segment_garment_sam(person_crop)
+    if cv2.countNonZero(garment_mask) == 0:
+        return {"contains_female": True, "dress_detected": False, "message": "No garment detected by segmentation."}
+
+    # Identify the color of the garment
+    dominant_color = extract_dominant_color(person_crop, garment_mask)
+    if dominant_color is None:
+        return {"contains_female": True, "dress_detected": True, "message": "Could not determine dominant color."}
+
+    return {
+        "contains_female": True,
+        "dress_detected": True,
+        "dominant_color": dominant_color,
+        "message": "Dominant color identified successfully."
     }
 
 
