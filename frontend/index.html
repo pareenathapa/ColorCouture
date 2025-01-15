@@ -1,71 +1,10 @@
-<!-- <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dress Recoloring</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            text-align: center;
-        }
-        img {
-            max-width: 80%;
-            margin-top: 20px;
-        }
-    </style>
-</head>
-<body>
-    <h1>Dress Recoloring Application</h1>
-    <form id="upload-form">
-        <label for="file">Upload an image:</label>
-        <input type="file" id="file" name="file" accept="image/*"><br><br>
-        <label for="color">Select a color:</label>
-        <select id="color" name="color">
-            <option value="red">Red</option>
-            <option value="blue">Blue</option>
-            <option value="green">Green</option>
-            <option value="yellow">Yellow</option>
-            <option value="purple">Purple</option>
-            <option value="pink">Pink</option>
-        </select><br><br>
-        <button type="submit">Recolor Dress</button>
-    </form>
-    <div id="result"></div>
-    <script>
-        document.getElementById("upload-form").onsubmit = async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-
-            // Send the image and color to the API
-            const response = await fetch("http://127.0.0.1:8000/recolor-dress/", {
-                method: "POST",
-                body: formData,
-            });
-
-            const result = await response.json();
-            const resultDiv = document.getElementById("result");
-
-            if (result.recolored_dress_image) {
-                // Create a full path to the image
-                const imagePath = `http://127.0.0.1:8000/${result.recolored_dress_image}`;
-                resultDiv.innerHTML = `<p>${result.message}</p><img src="${imagePath}" alt="Recolored Dress">`;
-            } else {
-                resultDiv.innerHTML = `<p>${result.message}</p>`;
-            }
-        };
-    </script>
-</body>
-</html> -->
-
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dress Recoloring</title>
+    <title>Color Couture</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -106,7 +45,7 @@
     </style>
 </head>
 <body>
-    <h1>Dress Recoloring Application</h1>
+    <h1>Color Couture</h1>
     <form id="upload-form">
         <label for="file">Upload an image:</label>
         <input type="file" id="file" name="file" accept="image/*" required><br><br>
