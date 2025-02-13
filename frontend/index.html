@@ -1,125 +1,55 @@
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Color Couture</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            text-align: center;
-        }
-        .container {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-        }
-        .image-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 40%;
-        }
-        .image-container img {
-            max-width: 100%;
-            height: auto;
-            border: 1px solid #ccc;
-            padding: 5px;
-            margin-top: 10px;
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin-top: 20px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+    <title>Color Couture - Fashion Recommendation System</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
-<body>
-    <h1>Color Couture</h1>
-    <form id="upload-form">
-        <label for="file">Upload an image:</label>
-        <input type="file" id="file" name="file" accept="image/*" required><br><br>
-        <label for="color">Select a color:</label>
-        <select id="color" name="color">
-            <option value="red">Red</option>
-            <option value="blue">Blue</option>
-            <option value="green">Green</option>
-            <option value="yellow">Yellow</option>
-            <option value="purple">Purple</option>
-            <option value="pink">Pink</option>
-        </select><br><br>
-        <button type="submit">Recolor Dress</button>
-    </form>
 
-    <div class="container">
-        <div class="image-container" id="uploaded-container">
-            <h3>Uploaded Image</h3>
-            <img id="uploaded-image" alt="Uploaded image will appear here">
+<body>
+    <!-- Landing Page Section -->
+    <section class="landing">
+        <div class="landing-content">
+            <h1>Color Couture</h1>
+            <p>Revolutionizing fashion with AI-powered dress recoloring. Upload your image and explore endless
+                possibilities with our Fashion Recommendation System.</p>
         </div>
-        <div class="image-container" id="recolored-container">
-            <h3>Recolored Image</h3>
-            <div id="loader" class="loader" style="display: none;"></div>
-            <img id="recolored-image" alt="Recolored image will appear here" style="display: none;">
+    </section>
+
+    <!-- Project Implementation Section -->
+    <section class="project">
+        <h2>Try It Out</h2>
+        <form id="upload-form" class="upload-form" style="margin-bottom: 20px;">
+            <label for="file">Choose an image</label>
+            <input type="file" id="file" name="file" accept="image/*" required>
+            <button type="submit">Recolor Dress</button>
+        </form>
+        <div class="container">
+            <div class="image-container" id="uploaded-container">
+                <h3>Uploaded Image</h3>
+                <div class="uploaded-image-container">
+                    <div class="placeholder">No image uploaded</div>
+                    <img id="uploaded-image" alt="Uploaded image">
+                </div>
+            </div>
+            <div class="image-container" id="recolored-container">
+                <h3>Recolored Images</h3>
+                <div id="loader" class="loader" style="display: none;"></div>
+                <div id="recolored-images" class="recolored-images-container"></div>
+            </div>
         </div>
+    </section>
+
+    <!-- Full-screen modal for image preview -->
+    <div id="image-modal" class="modal">
+        <span class="close">&times;</span>
+        <img id="modal-image" alt="Full-screen image">
     </div>
 
-    <script>
-        document.getElementById("upload-form").onsubmit = async (e) => {
-            e.preventDefault();
-
-            const formData = new FormData(e.target);
-
-            // Display uploaded image on the left
-            const fileInput = document.getElementById("file");
-            const uploadedImage = document.getElementById("uploaded-image");
-            if (fileInput.files && fileInput.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    uploadedImage.src = e.target.result;
-                };
-                reader.readAsDataURL(fileInput.files[0]);
-            }
-
-            // Show loader and hide recolored image while processing
-            const loader = document.getElementById("loader");
-            const recoloredImage = document.getElementById("recolored-image");
-            loader.style.display = "block";
-            recoloredImage.style.display = "none";
-
-            // Send the image and color to the API
-            const response = await fetch("http://127.0.0.1:8000/recolor-dress/", {
-                method: "POST",
-                body: formData,
-            });
-
-            const result = await response.json();
-            if (result.recolored_dress_image) {
-                // Create a full path to the image
-                const imagePath = `http://127.0.0.1:8000/${result.recolored_dress_image}`;
-                recoloredImage.src = imagePath;
-
-                // Show the recolored image and hide the loader
-                recoloredImage.onload = () => {
-                    loader.style.display = "none";
-                    recoloredImage.style.display = "block";
-                };
-            } else {
-                // Hide loader and display error
-                loader.style.display = "none";
-                recoloredImage.style.display = "none";
-                alert(result.message || "An error occurred while processing the image.");
-            }
-        };
-    </script>
+    <script src="script.js"></script>
 </body>
+
 </html>

@@ -1,4 +1,6 @@
-from fastapi import FastAPI, File, UploadFile
+
+from fastapi import FastAPI, File, UploadFile, Form
+from typing import List
 import os
 import cv2
 import numpy as np
@@ -7,7 +9,7 @@ from ultralytics import YOLO
 import torch
 from segment_anything import sam_model_registry, SamPredictor
 from mediapipe.python.solutions import pose as mp_pose
-
+import random
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
@@ -28,6 +30,20 @@ sam.to(device)
 sam_predictor = SamPredictor(sam)
 
 pose_estimator = mp_pose.Pose(static_image_mode=True, min_detection_confidence=0.5)
+
+# Define 50 colors in RGB format
+COLORS = [
+    "255,0,0", "0,255,0", "0,0,255", "255,255,0", "255,0,255",
+    "0,255,255", "128,0,0", "0,128,0", "0,0,128", "128,128,0",
+    "128,0,128", "0,128,128", "192,192,192", "128,128,128", "255,99,71",
+    "255,140,0", "255,215,0", "154,205,50", "0,250,154", "0,255,127",
+    "30,144,255", "0,191,255", "138,43,226", "147,112,219", "199,21,133",
+    "255,20,147", "255,105,180", "220,20,60", "139,0,0", "178,34,34",
+    "210,105,30", "139,69,19", "244,164,96", "205,133,63", "222,184,135",
+    "245,245,220", "245,222,179", "210,180,140", "188,143,143", "255,228,196",
+    "255,218,185", "255,222,173", "255,228,181", "255,248,220", "255,250,205",
+    "240,230,140", "238,232,170", "250,250,210", "255,239,213", "255,235,205"
+]
 
 def detect_female(image_path):
     """
@@ -132,7 +148,6 @@ def segment_garment_sam(image: np.ndarray) -> np.ndarray:
         print(f"SAM prediction error: {str(e)}")
         return np.zeros((h, w), dtype=np.uint8)
 
-
 def get_unique_filename(base_path, filename):
     """
     Generate a unique filename by appending a count if the file already exists.
@@ -174,33 +189,21 @@ def recolor_dress(image: np.ndarray, mask: np.ndarray, new_color: tuple) -> np.n
 
     # Convert back to BGR color space
     recolored_image = cv2.cvtColor(hsv_image, cv2.COLOR_HSV2BGR)
-
     return recolored_image
 
+
+
 @app.post("/recolor-dress/")
-async def recolor_dress_endpoint(file: UploadFile = File(...), color: str = "blue"):
+async def recolor_dress_endpoint(file: UploadFile = File(...)):
     """
-    Endpoint to recolor the dress in the uploaded image.
+    Endpoint to recolor the dress in the uploaded image with 5 random colors.
 
     Args:
         file (UploadFile): Input image file.
-        color (str): Desired color for the dress (e.g., 'red', 'blue', 'green').
 
     Returns:
-        JSON response with the path to the recolored image.
+        JSON response with the paths to the recolored images.
     """
-    color_map = {
-        "red": (0, 0, 255),
-        "blue": (255, 0, 0),
-        "green": (0, 255, 0),
-        "yellow": (0, 255, 255),
-        "purple": (128, 0, 128),
-        "pink": (255, 182, 193)
-    }
-
-    if color not in color_map:
-        return {"message": "Invalid color. Available colors: red, blue, green, yellow, purple, pink"}
-
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     with open(file_path, "wb") as buffer:
         buffer.write(await file.read())
@@ -216,21 +219,26 @@ async def recolor_dress_endpoint(file: UploadFile = File(...), color: str = "blu
     if cv2.countNonZero(garment_mask) == 0:
         return {"contains_female": True, "dress_detected": False, "message": "No dress detected by segmentation."}
 
-    # Step 3: Apply recoloring
-    new_color = color_map[color]
-    recolored_image = recolor_dress(image, garment_mask, new_color)
+    # Step 3: Randomly select 5 colors from the predefined list
+    selected_colors = random.sample(COLORS, 5)
 
-    # Step 4: Save the final image
-    recolored_output_path = get_unique_filename(SEGMENTED_DRESS, f"recolored_dress_{color}.png")
-    cv2.imwrite(recolored_output_path, recolored_image)
+    # Step 4: Apply recoloring for each color
+    recolored_output_paths = []
+    for color in selected_colors:
+        new_color = tuple(map(int, color.split(',')))  # Convert "r,g,b" string to tuple
+        recolored_image = recolor_dress(image, garment_mask, new_color)
+
+        # Step 5: Save the final image
+        recolored_output_path = get_unique_filename(SEGMENTED_DRESS, f"recolored_dress_{color.replace(',', '_')}.png")
+        cv2.imwrite(recolored_output_path, recolored_image)
+        recolored_output_paths.append(recolored_output_path)
 
     return {
         "contains_female": True,
         "dress_detected": True,
-        "recolored_dress_image": recolored_output_path,
-        "message": f"Dress recolored successfully to {color}."
+        "recolored_dress_images": recolored_output_paths,
+        "message": f"Dress recolored successfully with 5 different colors."
     }
-
 
 app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
 app.mount("/segmented_dress", StaticFiles(directory="segmented_dress"), name="segmented_dress")
